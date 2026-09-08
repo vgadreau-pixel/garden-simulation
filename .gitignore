@@ -1,0 +1,21 @@
+# Dossiers de travail (preuves CDP, captures, diagnostics)
+/preuves
+/preuves-immersif
+
+# Dépendances et builds
+/node_modules
+/dist
+/dist-debug
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Environnement / secrets
+.env
+.env.*
+
+# OS / éditeurs
+.DS_Store
+Thumbs.db
