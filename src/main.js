@@ -182,16 +182,17 @@ Object.defineProperty(clock, 'instances', {
 });
 
 // Jardin de démonstration si aucun plan sauvegardé : quelques plants pour
-// que la première visite ne soit pas vide (plantés en maturité jeune pousse).
+// que la première visite ne soit pas vide (plantés en maturité adulte,
+// répartis en quinconce naturel — pas de grille).
 if (jardin.compter().total === 0) {
   const DEMO = [
-    ['cerisier', 3, 3], ['erable_japonais', 5, 2], ['sapin', 6, 5],
-    ['pommier', 2, 5], ['lavande', 1, 2], ['rosier', 4, 4],
-    ['tulipe', 2, 3], ['coquelicot', 3, 6], ['marguerite', 5, 6],
-    ['tomate', 1, 5], ['carotte', 6, 3], ['bouleau', 0, 0],
+    ['cerisier', -6, -7], ['erable_japonais', 5, -9], ['sapin', 10, 4],
+    ['pommier', -11, 2], ['lavande', 3, 3], ['rosier', -4, 8],
+    ['tulipe', 7, 9], ['coquelicot', -8, 11], ['marguerite', 12, -4],
+    ['tomate', 1, 12], ['carotte', -14, -6], ['bouleau', 0, -14],
   ];
-  for (const [id, ix, iz] of DEMO) {
-    jardin.planterParId?.(id, ix, iz, { maturite: 0.9 });
+  for (const [id, x, z] of DEMO) {
+    jardin.planterParId?.(id, x, z, { maturite: 0.9 });
   }
 }
 
@@ -437,7 +438,7 @@ function montrerHint(texte) {
 }
 // Premier message d'accueil (fondu après 5 s).
 setTimeout(() => {
-  montrerHint('Choisissez une espèce à gauche, cliquez sur une parcelle pour planter. Clic droit : arracher.');
+  montrerHint('Choisissez une espèce à gauche, cliquez sur la pelouse pour planter. Clic droit : arracher. V : marche dans le jardin.');
 }, 1200);
 
 // Plantations → compteur du catalogue, tenu à jour en temps réel.

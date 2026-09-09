@@ -13,7 +13,6 @@
 import * as THREE from 'three';
 import { PLANTES } from './data/plants.js';
 import { etatPlante } from './seasons.js';
-import { PLOT_SIZE } from './constants.js';
 import { majVegetation, habillerInstance } from './vegetation.js';
 
 const COULEUR_BOIS = new THREE.Color('#7a5230');
@@ -51,13 +50,12 @@ export function creerJardin(scene, { nombre = 24, graine = 7 } = {}) {
     [especes[i], especes[j]] = [especes[j], especes[i]];
   }
 
-  // Positions : quinconce sur les centres de parcelles (1 plante par parcelle,
-  // on en parcourt un sous-ensemble), au milieu de la terre cultivée.
+  // Positions : quinconce libre sur la pelouse (plus de grille de parcelles).
   const spots = [];
-  const pas = PLOT_SIZE / 2.2;
+  const pas = 4.4;
   for (let a = 0; a < 5; a++) {
     for (let b = 0; b < 5; b++) {
-      spots.push(new THREE.Vector3((a - 2) * pas * 1.9, 0, (b - 2) * pas * 1.9));
+      spots.push(new THREE.Vector3((a - 2) * pas, 0, (b - 2) * pas));
     }
   }
   for (let i = spots.length - 1; i > 0; i--) {

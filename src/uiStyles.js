@@ -107,13 +107,11 @@ export const STYLES_INTEGRATION = `
   }
   #catalogue-vider:hover { background: rgba(217, 136, 128, 0.35); }
 
-  /* ── HUD : idem climat-panel, mais sous le catalogue ── */
-  #hud { top: auto; bottom: 78px; }
-
   /* ── Barre audio (zenAudio) : hôte repositionné, contenu stylé à l'identique ── */
+  /* Positionnée à gauche de la timebar (timebar centrée, audio calé au coin). */
   #audio-host {
     position: fixed;
-    left: 244px;
+    left: 8px;
     bottom: 14px;
     z-index: 30;
   }

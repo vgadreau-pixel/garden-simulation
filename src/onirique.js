@@ -88,10 +88,12 @@ const HERBE_SAISONS = {
 };
 
 /**
- * Champ d'herbe sur la pelouse (anneau autour de la grille de parcelles).
- * `nombre` = brins (réduit par ?herbe=N pour les validations headless).
+ * Champ d'herbe couvrant TOUTE la pelouse (le jardin est une prairie libre,
+ * sans grille de parcelles). `nombre` = brins (réduit par ?herbe=N pour les
+ * validations headless). Les brins près des dalles/passage restent possibles :
+ * les pas japonais sont posés à y=0.03 et l'herbe y plie, effet naturel.
  */
-function creerHerbe(scene, nombre, { grilleDemi = 19.0, bordDemi = 22.0 } = {}) {
+function creerHerbe(scene, nombre, { demi = 23.5 } = {}) {
   const geo = geometrieBrin();
   // RNG déterministe : positions stables entre les builds.
   let a = 1337;
@@ -122,11 +124,9 @@ function creerHerbe(scene, nombre, { grilleDemi = 19.0, bordDemi = 22.0 } = {}) 
   let poses = 0, gardes = 0;
   while (poses < nombre && gardes < nombre * 40) {
     gardes++;
-    const x = (rnd() * 2 - 1) * bordDemi;
-    const z = (rnd() * 2 - 1) * bordDemi;
-    // Uniquement l'anneau de pelouse autour de la grille (le sol des parcelles
-    // reste de la terre ; les allées restent des chemins).
-    if (Math.abs(x) < grilleDemi && Math.abs(z) < grilleDemi) continue;
+    const x = (rnd() * 2 - 1) * demi;
+    const z = (rnd() * 2 - 1) * demi;
+    // Prairie continue : pas de zone d'exclusion (le bassin repose au-dessus).
     eul.set((rnd() - 0.5) * 0.3, rnd() * Math.PI * 2, (rnd() - 0.5) * 0.3);
     q.setFromEuler(eul);
     const h = 0.28 + rnd() * 0.42;

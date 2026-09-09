@@ -1,11 +1,9 @@
-// Terrain : sol PBR (textures albedo+normal+roughness Poly Haven, CC0),
-// allées, grille 8x8 de parcelles de jardin délimitées par des bordures bois,
-// terre travaillée au centre.
-// Les 256 parcelles sont fusionnées en 2 meshes (bordures + terre) pour
-// limiter les draw calls et garantir un framerate élevé.
+// Terrain : sol en herbe PBR (textures Poly Haven CC0 + repli procédural),
+// pelouse continue SANS grille de parcelles, chemins de dalles naturelles
+// (pas japonais) reliant l'entrée sud au bassin et au cœur du jardin.
+// Le style cherche un jardin paysager, pas un potager en carrés.
 import * as THREE from 'three';
-import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { PLOT_COUNT, PLOT_SIZE, PITCH, PLOT_PATH, GRID_EXTENT, GROUND_MARGIN, COLORS } from './constants.js';
+import { GRID_EXTENT, GROUND_MARGIN } from './constants.js';
 
 const DEFAUTS_PBR = { normalScale: 0.6, repeat: 10 };
 
@@ -88,39 +86,43 @@ function makeGrassTexture(size = 512) {
   return texture;
 }
 
-function makeSoilTexture(size = 256) {
-  const canvas = document.createElement('canvas');
-  canvas.width = size;
-  canvas.height = size;
-  const ctx = canvas.getContext('2d');
-  ctx.fillStyle = '#6b4a2f';
-  ctx.fillRect(0, 0, size, size);
-  // Sillons de terre travaillée
-  for (let i = 0; i < size; i += 8) {
-    ctx.strokeStyle = `rgba(${60 + rnd(20)}, ${38 + rnd(14)}, ${22 + rnd(10)}, 0.5)`;
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.moveTo(0, i);
-    ctx.lineTo(size, i);
-    ctx.stroke();
-  }
-  // Cailloux / miettes
-  for (let i = 0; i < 250; i++) {
-    ctx.fillStyle = `rgba(${120 + rnd(40)}, ${95 + rnd(30)}, ${70 + rnd(25)}, ${0.25 + Math.random() * 0.3})`;
-    ctx.beginPath();
-    ctx.arc(Math.random() * size, Math.random() * size, 0.6 + Math.random() * 1.8, 0, Math.PI * 2);
-    ctx.fill();
-  }
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.wrapS = THREE.RepeatWrapping;
-  texture.wrapT = THREE.RepeatWrapping;
-  texture.repeat.set(1.5, 1.5);
-  texture.colorSpace = THREE.SRGBColorSpace;
-  return texture;
-}
-
 function rnd(n) {
   return Math.floor(Math.random() * n);
+}
+
+/** RNG déterministe (mêmes dalles entre les builds). */
+function mulberry32(a) {
+  return function () {
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/**
+ * Pas japonais : dalles rondes posées sur la pelouse le long d'une courbe
+ * souple (Catmull-Rom). L'herbe passe entre les dalles — naturel, aucun
+ * conflit avec le champ d'herbe instancié.
+ */
+function poserPasJaponais(group, matDalles, points, { nDalles = 14, rMin = 0.42, rMax = 0.62 } = {}) {
+  const courbe = new THREE.CatmullRomCurve3(points.map(([x, z]) => new THREE.Vector3(x, 0, z)));
+  const rng = mulberry32(20260909);
+  const geoProto = new THREE.CircleGeometry(1, 14);
+  for (let i = 0; i < nDalles; i++) {
+    const t = i / (nDalles - 1);
+    const p = courbe.getPoint(t);
+    // Jitter latéral léger : la ligne n'est pas une autoroute.
+    const n = courbe.getTangent(t);
+    const lat = new THREE.Vector3(-n.z, 0, n.x).multiplyScalar((rng() - 0.5) * 0.5);
+    const dalle = new THREE.Mesh(geoProto, matDalles);
+    dalle.rotation.x = -Math.PI / 2;
+    dalle.rotation.z = rng() * Math.PI * 2;
+    dalle.scale.setScalar(rMin + rng() * (rMax - rMin));
+    dalle.position.set(p.x + lat.x, 0.03 + rng() * 0.01, p.z + lat.z);
+    dalle.receiveShadow = true;
+    group.add(dalle);
+  }
 }
 
 export function buildTerrain(scene) {
@@ -140,75 +142,16 @@ export function buildTerrain(scene) {
   ground.receiveShadow = true;
   group.add(ground);
 
-  // --- Chemins (allées) : croix centrale + pourtour de la grille ---
-  const pathMat = matPBR('chemin', { repeat: 8, normalScale: 0.4 });
-  const pathY = 0.02;
-
-  // Pourtour : légère bande claire autour de la grille
-  const apron = new THREE.Mesh(
-    new THREE.PlaneGeometry(GRID_EXTENT + PLOT_PATH * 2, GRID_EXTENT + PLOT_PATH * 2),
-    new THREE.MeshStandardMaterial({ color: 0xb9c489, roughness: 1 })
-  );
-  apron.rotation.x = -Math.PI / 2;
-  apron.position.y = 0.01;
-  apron.receiveShadow = true;
-  group.add(apron);
-
-  const addPath = (w, d, x, z) => {
-    const m = new THREE.Mesh(new THREE.BoxGeometry(w, 0.04, d), pathMat);
-    m.position.set(x, pathY, z);
-    m.receiveShadow = true;
-    group.add(m);
-  };
-  // Croix centrale (allées traversantes)
-  addPath(PLOT_PATH + 0.4, GRID_EXTENT + PLOT_PATH, 0, 0);
-  addPath(GRID_EXTENT + PLOT_PATH, PLOT_PATH + 0.4, 0, 0);
-
-  // --- Grille de parcelles 8x8 ---
-  const soilTex = makeSoilTexture();
-  const soilMat = matPBR('terre', { repeat: 1.5, normalScale: 0.55 });
-  const borderMat = new THREE.MeshStandardMaterial({ color: COLORS.border, roughness: 0.9 });
-
-  const offset = (PLOT_COUNT - 1) / 2;
-  const borderGeos = [];
-  const soilGeos = [];
-  for (let ix = 0; ix < PLOT_COUNT; ix++) {
-    for (let iz = 0; iz < PLOT_COUNT; iz++) {
-      const px = (ix - offset) * PITCH;
-      const pz = (iz - offset) * PITCH;
-
-      // Bordure bois : 4 côtés fins formant un cadre
-      const t = 0.18; // épaisseur bordure
-      const h = 0.22; // hauteur bordure
-      const s = PLOT_SIZE / 2;
-      const sides = [
-        [PLOT_SIZE + t * 2, t, 0, -s - t / 2],
-        [PLOT_SIZE + t * 2, t, 0, s + t / 2],
-        [t, PLOT_SIZE, -s - t / 2, 0],
-        [t, PLOT_SIZE, s + t / 2, 0],
-      ];
-      for (const [w, d, lx, lz] of sides) {
-        const g = new THREE.BoxGeometry(w, h, d);
-        g.translate(px + lx, h / 2, pz + lz);
-        borderGeos.push(g);
-      }
-
-      // Terre cultivée
-      const soil = new THREE.PlaneGeometry(PLOT_SIZE - 0.1, PLOT_SIZE - 0.1);
-      soil.rotateX(-Math.PI / 2);
-      soil.translate(px, 0.05, pz);
-      soilGeos.push(soil);
-    }
-  }
-
-  const borders = new THREE.Mesh(mergeGeometries(borderGeos), borderMat);
-  borders.castShadow = true;
-  borders.receiveShadow = true;
-  group.add(borders);
-
-  const soilField = new THREE.Mesh(mergeGeometries(soilGeos), soilMat);
-  soilField.receiveShadow = true;
-  group.add(soilField);
+  // --- Pas japonais : entrée sud → cœur du jardin, et vers le bassin ---
+  // (le bassin est posé à (-20.3, 20.3) par la couche onirique).
+  const matDalles = matPBR('chemin', { repeat: 1.2, normalScale: 0.4 });
+  poserPasJaponais(group, matDalles, [
+    [0, GRID_EXTENT / 2 + GROUND_MARGIN - 1.5], // entrée sud
+    [3, 12], [-2, 6], [2, 0], [-3, -6], [0, -12], [4, -16], // vers le nord
+  ]);
+  poserPasJaponais(group, matDalles, [
+    [-2, 4], [-8, 8], [-14, 13], [-18.5, 17.5], // embranchement vers le bassin
+  ], { nDalles: 10 });
 
   scene.add(group);
   return group;
