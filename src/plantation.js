@@ -28,7 +28,7 @@ function rayonEncombrement(plante) {
   return 0.5; // fleurs / légumes
 }
 
-export function creerPlantation(scene, canvas, camera, clock, { onChangement, vueFps } = {}) {
+export function creerPlantation(scene, canvas, camera, clock, { onChangement, vueFps, surFeedback } = {}) {
   const group = new THREE.Group();
   group.name = 'plantations';
   scene.add(group);
@@ -146,7 +146,49 @@ export function creerPlantation(scene, canvas, camera, clock, { onChangement, vu
   }
 
   // ── Planter / retirer ──
-  function planter(x, z, plante, { sauvegarder = true, maturite = 0.12 } = {}) {
+  // Animation d'apparition : la plante « pousse » du sol en 0,6 s (élastique
+  // doux) + anneau d'onde au sol qui s'étend et s'estompe. Feedback clair :
+  // impossible de rater le fait que la plantation a réussi.
+  const anims = []; // { inst, t0, onde, mats0 }
+  const ondeGeo = new THREE.RingGeometry(0.55, 0.75, 32);
+  function animerApparition(inst) {
+    const onde = new THREE.Mesh(
+      ondeGeo,
+      new THREE.MeshBasicMaterial({
+        color: 0xd8f5a8, transparent: true, opacity: 0.75,
+        side: THREE.DoubleSide, depthWrite: false,
+      })
+    );
+    onde.rotation.x = -Math.PI / 2;
+    onde.position.set(inst.group.position.x, 0.08, inst.group.position.z);
+    group.add(onde);
+    anims.push({ inst, t0: performance.now(), onde });
+  }
+
+  function majAnims() {
+    const now = performance.now();
+    for (let i = anims.length - 1; i >= 0; i--) {
+      const a = anims[i];
+      const t = Math.min(1, (now - a.t0) / 600);
+      // Ease out-back doux : léger dépassement puis stabilisation.
+      const e = 1 + 2.2 * Math.pow(t - 1, 3) + 1.2 * Math.pow(t - 1, 2);
+      // Facteur lu par appliquerEtat (plantInstances.js) qui l'applique à
+      // l'échelle après croissance — pas de conflit d'écriture d'échelle.
+      a.inst.apparition = Math.max(0.05, 0.15 + 0.85 * e);
+      // Onde : s'étend de x1 à x4, fondu.
+      const ot = Math.min(1, (now - a.t0) / 900);
+      a.onde.scale.setScalar(1 + ot * 3);
+      a.onde.material.opacity = 0.75 * (1 - ot);
+      if (t >= 1) {
+        a.inst.apparition = undefined; // fin de l'anim : croissance normale
+        group.remove(a.onde);
+        a.onde.material.dispose();
+        anims.splice(i, 1);
+      }
+    }
+  }
+
+  function planter(x, z, plante, { sauvegarder = true, maturite = 0.12, silencieux = false } = {}) {
     const pt = new THREE.Vector3(x, 0, z);
     if (!pointValide(pt, plante)) return null;
     const inst = creerInstancePlante(
@@ -158,6 +200,7 @@ export function creerPlantation(scene, canvas, camera, clock, { onChangement, vu
     group.add(inst.group);
     plantees.add(inst);
     habillerInstance(inst); // modèle GLTF texturé (asynchrone, repli primitives)
+    if (!silencieux) animerApparition(inst);
     if (sauvegarder) signaler();
     return inst;
   }
@@ -172,10 +215,16 @@ export function creerPlantation(scene, canvas, camera, clock, { onChangement, vu
 
   function basculer(pt) {
     const existante = planteSous(pt);
-    if (existante) return retirerInstance(existante);
+    if (existante) {
+      retirerInstance(existante);
+      return { ok: true, action: 'retire' };
+    }
     const plante = planteParId(especeSelectionnee);
-    if (plante) planter(pt.x, pt.z, plante);
-    return true;
+    if (!plante) return { ok: false, action: 'aucune' };
+    const inst = planter(pt.x, pt.z, plante);
+    return inst
+      ? { ok: true, action: 'plante', inst }
+      : { ok: false, action: 'trop-pres' };
   }
 
   // ── Événements souris ──
@@ -194,7 +243,10 @@ export function creerPlantation(scene, canvas, camera, clock, { onChangement, vu
     if (dx * dx + dy * dy > 36) return; // c'était un drag de caméra
     if (e.target !== canvas) return;
     const pt = pointSousCurseur(e.clientX, e.clientY);
-    if (pt && basculer(pt)) majSurbrillance(e);
+    if (!pt) return;
+    const res = basculer(pt);
+    if (surFeedback) surFeedback(res);
+    if (res.ok) majSurbrillance(e);
   }
   function onPointerMove(e) {
     if (downXY) return; // drag en cours : pas de surbrillance parasite
@@ -215,8 +267,10 @@ export function creerPlantation(scene, canvas, camera, clock, { onChangement, vu
   canvas.addEventListener('contextmenu', onContextMenu);
 
   // ── Vue immersive : visée au centre de l'écran ──
-  // majFPS() est appelé chaque frame par main.js : le disque suit le regard.
+  // majFPS() est appelé chaque frame par main.js : le disque suit le regard
+  // et les animations d'apparition progressent.
   function majFPS() {
+    majAnims();
     if (!vueFps || !vueFps.actif()) return;
     majSurbrillance(null);
   }
@@ -269,8 +323,10 @@ export function creerPlantation(scene, canvas, camera, clock, { onChangement, vu
   return {
     group,
     planter,
-    /** Mise à jour de la visée en vue immersive (appelé chaque frame). */
+    /** Mise à jour visée FPS + animations (appelé chaque frame). */
     majFPS,
+    /** Animations d'apparition (appelé chaque frame en vue de dessus aussi). */
+    majAnims,
     /** Plante une espèce par identifiant de catalogue (usage : démo/main.js). */
     planterParId(id, x, z, opts) {
       const plante = planteParId(id);

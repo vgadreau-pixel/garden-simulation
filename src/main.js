@@ -187,10 +187,49 @@ const clock = new SimulationClock(undefined, CLIMAT_START); // départ ~1er avri
 // --- Météo (particules pluie/neige/brume pilotées par le climat) ---
 const meteo = creerMeteo(scene);
 
+// --- Feedback plantation : son doux (WebAudio) + libellé du résultat ---
+let ctxAudio = null;
+function bipPlantation(freq, duree = 0.18) {
+  try {
+    ctxAudio = ctxAudio || new (window.AudioContext || window.webkitAudioContext)();
+    const o = ctxAudio.createOscillator();
+    const g = ctxAudio.createGain();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(freq, ctxAudio.currentTime);
+    o.frequency.exponentialRampToValueAtTime(freq * 1.5, ctxAudio.currentTime + duree);
+    g.gain.setValueAtTime(0.12, ctxAudio.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.0001, ctxAudio.currentTime + duree);
+    o.connect(g).connect(ctxAudio.destination);
+    o.start();
+    o.stop(ctxAudio.currentTime + duree);
+  } catch { /* audio indisponible : le visuel suffit */ }
+}
+function surFeedback(res) {
+  if (res.action === 'plante') {
+    bipPlantation(320, 0.22);
+    montrerToast('🌱 Planté !');
+  } else if (res.action === 'retire') {
+    bipPlantation(200, 0.15);
+    montrerToast('Arraché');
+  } else if (res.action === 'trop-pres') {
+    montrerToast('Trop près d\'une autre plante — décale un peu');
+  }
+}
+
+// Petit toast discret au-dessus de la timebar (réutilise #hint-plantation).
+function montrerToast(texte) {
+  const el = document.getElementById('hint-plantation');
+  if (!el) return;
+  el.textContent = texte;
+  el.classList.add('visible');
+  clearTimeout(montrerToast._t);
+  montrerToast._t = setTimeout(() => el.classList.remove('visible'), 1800);
+}
+
 // --- Plantation interactive (catalogue + clic sur parcelles) ---
 // Les plantes du plan sauvegardé sont restaurées ici ; l'horloge les fait
 // ensuite grandir (maturité modulée par le climat).
-const jardin = creerPlantation(scene, canvas, camera, clock, { vueFps });
+const jardin = creerPlantation(scene, canvas, camera, clock, { vueFps, surFeedback });
 Object.defineProperty(clock, 'instances', {
   get: () => jardin.instances,
   set: () => {}, // compat ascendante : l'affectation directe est ignorée
@@ -337,8 +376,9 @@ renderer.setAnimationLoop(() => {
 
   // Marche à la première personne (mode fps uniquement, collisions incluses).
   fps.update(deltaMs / 1000);
-  // Visée de plantation en vue immersive : le disque suit le regard (centre).
+  // Visée de plantation en vue immersive + animations d'apparition.
   jardin.majFPS?.();
+  jardin.majAnims?.();
 
   if (controls.needsUpdate) controls.update();
   // Post-processing léger (bloom) : rendu via le composer, caméra du mode courant.
@@ -387,6 +427,7 @@ renderer.setAnimationLoop(() => {
         climatUI.maj();
         fps.update(deltaMs / 1000);
         jardin.majFPS?.();
+        jardin.majAnims?.();
         if (controls.needsUpdate) controls.update();
         post.renderPass.camera = modeCamera === 'fps' ? fpsCamera : camera;
         post.composer.render();
@@ -421,6 +462,7 @@ renderer.setAnimationLoop(() => {
       climatUI.maj();
       fps.update(deltaMs / 1000);
       jardin.majFPS?.();
+      jardin.majAnims?.();
       if (controls.needsUpdate) controls.update();
       post.renderPass.camera = modeCamera === 'fps' ? fpsCamera : camera;
       post.composer.render();

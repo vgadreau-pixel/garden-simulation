@@ -180,7 +180,10 @@ export function appliquerEtat(instance, jours, climatId) {
 
   // Croissance (stades du catalogue)
   const ech = echelleCroissance(instance.plante, instance.maturite);
-  const s = Math.max(0.05, ech) * instance.echelleBase * (1 + et.masseFoliaire * 0.12);
+  let s = Math.max(0.05, ech) * instance.echelleBase * (1 + et.masseFoliaire * 0.12);
+  // Animation d'apparition (plantation) : facteur 0.15→1 posé par
+  // plantation.js ; absent (=1) hors anim — aucune perte de perf.
+  if (instance.apparition !== undefined) s *= instance.apparition;
   instance.group.scale.setScalar(s);
   parties.feuilles.visible = et.masseFoliaire > 0.02 && !instance.vegActif;
 
