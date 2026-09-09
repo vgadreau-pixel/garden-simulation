@@ -145,6 +145,68 @@ export function creerPlantation(scene, canvas, camera, clock, { onChangement, vu
     surbrillance.visible = true;
   }
 
+  // ── Éléments de décor (roche, eau) : meshes dédiés, pas des plantes ──
+  function creerDecor(plante, pt) {
+    const group = new THREE.Group();
+    group.position.copy(pt);
+    if (plante.type === 'roche') {
+      // Bloc granitique irrégulier : icosahèdre déformé, 2-3 blocs groupés.
+      const rng = Math.random;
+      const mat = new THREE.MeshStandardMaterial({ color: 0x8b8d90, roughness: 0.95, flatShading: true });
+      const n = 2 + Math.floor(rng() * 2);
+      for (let i = 0; i < n; i++) {
+        const geo = new THREE.IcosahedronGeometry(0.5 + rng() * 0.5, 1);
+        const pos = geo.attributes.position;
+        for (let v = 0; v < pos.count; v++) {
+          pos.setXYZ(v, pos.getX(v) * (0.8 + rng() * 0.4), pos.getY(v) * (0.55 + rng() * 0.3), pos.getZ(v) * (0.8 + rng() * 0.4));
+        }
+        geo.computeVertexNormals();
+        const m = new THREE.Mesh(geo, mat);
+        m.position.set((rng() - 0.5) * 1.2, 0.15 + rng() * 0.15, (rng() - 0.5) * 1.2);
+        m.rotation.y = rng() * Math.PI * 2;
+        m.castShadow = true;
+        m.receiveShadow = true;
+        group.add(m);
+      }
+      group.scale.setScalar(0.8 + Math.random() * 0.6);
+    } else if (plante.type === 'eau') {
+      // Petite pièce d'eau naturelle : dépression + surface shader (réutilise
+      // le style du bassin onirique en plus simple, sans caustiques lourdes).
+      const r = 1.6 + Math.random() * 0.8;
+      const fond = new THREE.Mesh(
+        new THREE.CircleGeometry(r, 24),
+        new THREE.MeshStandardMaterial({ color: 0x1d4d52, roughness: 1 })
+      );
+      fond.rotation.x = -Math.PI / 2;
+      fond.position.y = 0.02;
+      group.add(fond);
+      const eau = new THREE.Mesh(
+        new THREE.CircleGeometry(r, 28),
+        new THREE.MeshStandardMaterial({
+          color: 0x4da8a0, roughness: 0.15, metalness: 0.1,
+          transparent: true, opacity: 0.88,
+        })
+      );
+      eau.rotation.x = -Math.PI / 2;
+      eau.position.y = 0.12;
+      eau.renderOrder = 2;
+      group.add(eau);
+      // Banc de galets en bordure
+      const galetMat = new THREE.MeshStandardMaterial({ color: 0x9a9c9f, roughness: 0.9, flatShading: true });
+      const n = 10 + Math.floor(Math.random() * 6);
+      for (let i = 0; i < n; i++) {
+        const a = (i / n) * Math.PI * 2 + Math.random() * 0.4;
+        const gr = 0.09 + Math.random() * 0.1;
+        const galet = new THREE.Mesh(new THREE.IcosahedronGeometry(gr, 0), galetMat);
+        galet.position.set(Math.cos(a) * (r + 0.12), 0.05, Math.sin(a) * (r + 0.12));
+        galet.scale.y = 0.6;
+        galet.castShadow = true;
+        group.add(galet);
+      }
+    }
+    return group;
+  }
+
   // ── Planter / retirer ──
   // Animation d'apparition : la plante « pousse » du sol en 0,6 s (élastique
   // doux) + anneau d'onde au sol qui s'étend et s'estompe. Feedback clair :
@@ -191,16 +253,24 @@ export function creerPlantation(scene, canvas, camera, clock, { onChangement, vu
   function planter(x, z, plante, { sauvegarder = true, maturite = 0.12, silencieux = false } = {}) {
     const pt = new THREE.Vector3(x, 0, z);
     if (!pointValide(pt, plante)) return null;
-    const inst = creerInstancePlante(
-      plante,
-      pt,
-      maturite,
-      (Math.random() - 0.5) * 0.5
-    );
+    let inst;
+    if (plante.decor) {
+      // Décor (roche, eau) : enveloppe compatible instance minimale.
+      const dgroup = creerDecor(plante, pt);
+      dgroup.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+      inst = { plante, group: dgroup, maturite: 1, mats: null, parties: null, decor: true };
+    } else {
+      inst = creerInstancePlante(
+        plante,
+        pt,
+        maturite,
+        (Math.random() - 0.5) * 0.5
+      );
+      habillerInstance(inst); // modèle GLTF texturé (asynchrone, repli primitives)
+    }
     group.add(inst.group);
     plantees.add(inst);
-    habillerInstance(inst); // modèle GLTF texturé (asynchrone, repli primitives)
-    if (!silencieux) animerApparition(inst);
+    if (!silencieux && !plante.decor) animerApparition(inst);
     if (sauvegarder) signaler();
     return inst;
   }

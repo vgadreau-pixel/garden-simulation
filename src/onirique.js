@@ -507,6 +507,9 @@ export function creerOnirique(scene, opts = {}) {
 
   return {
     update,
+    /** Visibilité du champ d'herbe (masqué en vue de dessus où il scintille). */
+    set herbeVisible(v) { herbe.mesh.visible = v; },
+    get herbeVisible() { return herbe.mesh.visible; },
     infos: {
       get brins() { return herbe.brins; },
       bassin: { x: bassin.x, z: bassin.z, r: bassin.rayon },

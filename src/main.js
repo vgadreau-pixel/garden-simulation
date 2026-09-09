@@ -112,6 +112,9 @@ function montrerMode() {
 
 function basculerMode() {
   modeCamera = modeCamera === 'fps' ? 'orbital' : 'fps';
+  // Herbe instanciée : trop scintillante vue de dessus → réservée à la
+  // vue immersive où les brins donnent la profondeur.
+  onirique.herbeVisible = modeCamera === 'fps';
   if (modeCamera === 'fps') {
     fps.activer(); // demande le pointer lock
     controls.enabled = false;
@@ -175,6 +178,7 @@ buildTerrain(scene);
 const paramsOnirique = new URLSearchParams(location.search);
 const NB_BRINS = Math.max(0, parseInt(paramsOnirique.get('herbe') || '26000', 10) || 0);
 const onirique = creerOnirique(scene, { brins: NB_BRINS });
+onirique.herbeVisible = false; // vue de dessus par défaut : brins masqués
 
 // --- Moteur temporel ---
 // Le climat peut être pré-sélectionné via ?climat=<id> dans l'URL ;
@@ -367,7 +371,8 @@ renderer.setAnimationLoop(() => {
   meteo.appliquer(m, deltaMs / 1000);
 
   // Rendu saisonnier : états continus recalculés chaque frame, sous climat.
-  for (const inst of jardin.instances) appliquerEtat(inst, clock.jours, clock.climat);
+  // Le décor (roche, eau) n'a pas d'état saisonnier : on le saute.
+  for (const inst of jardin.instances) if (!inst.decor) appliquerEtat(inst, clock.jours, clock.climat);
   appliquerLumiere(m);
   majAudio(m);
 
@@ -422,7 +427,7 @@ renderer.setAnimationLoop(() => {
         majVent(t / 1000);
         const m = meteoDuJour(clock.climat, clock.jours);
         meteo.appliquer(m, deltaMs / 1000);
-        for (const inst of jardin.instances) appliquerEtat(inst, clock.jours, clock.climat);
+        for (const inst of jardin.instances) if (!inst.decor) appliquerEtat(inst, clock.jours, clock.climat);
         appliquerLumiere(m);
         majAudio(m);
         onirique.update({
@@ -457,7 +462,7 @@ renderer.setAnimationLoop(() => {
       majVent(t / 1000);
       const m = meteoDuJour(clock.climat, clock.jours);
       meteo.appliquer(m, deltaMs / 1000);
-      for (const inst of jardin.instances) appliquerEtat(inst, clock.jours, clock.climat);
+      for (const inst of jardin.instances) if (!inst.decor) appliquerEtat(inst, clock.jours, clock.climat);
       appliquerLumiere(m);
       majAudio(m);
       onirique.update({

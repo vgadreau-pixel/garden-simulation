@@ -36,7 +36,7 @@ export const CLIMATS = {
   },
 };
 
-export const TYPES = ['arbre', 'arbuste', 'fleur', 'legume'];
+export const TYPES = ['arbre', 'arbuste', 'fleur', 'legume', 'roche', 'eau'];
 
 export const SAISONS = ['printemps', 'ete', 'automne', 'hiver'];
 
@@ -547,6 +547,31 @@ export const PLANTES = [
     caduc: true,
     rusticite: 'fragile',
     zoneUsdaMin: 10,
+  },
+  // ── Éléments de décor naturel (pas des plantes : rendu dédié) ──────────
+  {
+    id: 'roche',
+    nom: 'Roche décorative',
+    type: 'roche',
+    climats: ['oceanique', 'continental', 'mediterraneen', 'montagne'],
+    tailleMatureM: 1,
+    stades: [{ nom: 'mature', couleur: '#8b8d90', echelle: 1.0, description: 'Bloc de granit' }],
+    feuillage: { printemps: null, ete: null, automne: null, hiver: null },
+    caduc: false,
+    rustique: true,
+    decor: true,
+  },
+  {
+    id: 'eau',
+    nom: "Point d'eau (bassin)",
+    type: 'eau',
+    climats: ['oceanique', 'continental', 'mediterraneen', 'montagne'],
+    tailleMatureM: 2,
+    stades: [{ nom: 'mature', couleur: '#5fb8a8', echelle: 1.0, description: "Pièce d'eau naturelle" }],
+    feuillage: { printemps: null, ete: null, automne: null, hiver: null },
+    caduc: false,
+    rustique: true,
+    decor: true,
   },
 ];
 
