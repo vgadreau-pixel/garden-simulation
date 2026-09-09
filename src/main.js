@@ -313,15 +313,28 @@ window.addEventListener('resize', () => {
 });
 
 // --- Lumière/ciel : pilotage complet délégué à la couche sky.js (3/3) ---
+// À partir de 1 jour/s, le cycle jour/nuit défile plus vite qu'une seconde :
+// c'est du clignotement (et du stroboscope à 1 semaine/s). En timelapse on
+// fige donc l'éclairage sur une heure dorée fixe (10 h 30) — la scène reste
+// lisible et reposante, tandis que saisons et croissance continuent. La
+// vraie heure de simulation reste visible dans la barre du temps.
+const SEUIL_TIMELAPSE_J_S = 0.5; // ≥ 0,5 jour/s → éclairage figé
+const HEURE_SOLEIL_TIMELAPSE = 10.5;
+function heureEclairage() {
+  return clock.daysPerSecond >= SEUIL_TIMELAPSE_J_S
+    ? HEURE_SOLEIL_TIMELAPSE
+    : clock.heure;
+}
 function appliquerLumiere(m) {
-  const et = etatSoleil(clock.jours, clock.heure);
+  const heureLum = heureEclairage();
+  const et = etatSoleil(clock.jours, heureLum);
   sun.position.copy(et.direction);
   sun.target.position.set(0, 0, 0);
   appliquerCielLumiere({
     et,
     meteo: m,
     saison: clock.etat.saison,
-    heure: clock.heure,
+    heure: heureLum,
     hemi,
     sun,
     renderer,
@@ -329,7 +342,7 @@ function appliquerLumiere(m) {
     fog,
     etoiles,
     scene,
-    nuitAvancee: clock.heure < 5 || clock.heure > 22,
+    nuitAvancee: heureLum < 5 || heureLum > 22,
   });
 }
 
@@ -361,10 +374,10 @@ renderer.setAnimationLoop(() => {
   // Couche onirique : herbe/eau/particules/rais pilotés par l'état courant.
   onirique.update({
     delta: Math.min(deltaMs / 1000, 0.1),
-    soleilDir: etatSoleil(clock.jours, clock.heure).direction,
+    soleilDir: etatSoleil(clock.jours, heureEclairage()).direction,
     couleurLumiere: sun.color,
-    nuit: clock.heure < 6.5 || clock.heure > 20.5,
-    hauteurNorm: etatSoleil(clock.jours, clock.heure).hauteurNorm ?? 0.5,
+    nuit: heureEclairage() < 6.5 || heureEclairage() > 20.5,
+    hauteurNorm: etatSoleil(clock.jours, heureEclairage()).hauteurNorm ?? 0.5,
     eclat: m.eclat,
     saison: clock.etat.saison,
     camera: modeCamera === 'fps' ? fpsCamera : camera,
@@ -414,10 +427,10 @@ renderer.setAnimationLoop(() => {
         majAudio(m);
         onirique.update({
           delta: Math.min(deltaMs / 1000, 0.1),
-          soleilDir: etatSoleil(clock.jours, clock.heure).direction,
+          soleilDir: etatSoleil(clock.jours, heureEclairage()).direction,
           couleurLumiere: sun.color,
-          nuit: clock.heure < 6.5 || clock.heure > 20.5,
-          hauteurNorm: etatSoleil(clock.jours, clock.heure).hauteurNorm ?? 0.5,
+          nuit: heureEclairage() < 6.5 || heureEclairage() > 20.5,
+          hauteurNorm: etatSoleil(clock.jours, heureEclairage()).hauteurNorm ?? 0.5,
           eclat: m.eclat,
           saison: clock.etat.saison,
           camera: modeCamera === 'fps' ? fpsCamera : camera,
@@ -449,10 +462,10 @@ renderer.setAnimationLoop(() => {
       majAudio(m);
       onirique.update({
         delta: Math.min(deltaMs / 1000, 0.1),
-        soleilDir: etatSoleil(clock.jours, clock.heure).direction,
+        soleilDir: etatSoleil(clock.jours, heureEclairage()).direction,
         couleurLumiere: sun.color,
-        nuit: clock.heure < 6.5 || clock.heure > 20.5,
-        hauteurNorm: etatSoleil(clock.jours, clock.heure).hauteurNorm ?? 0.5,
+        nuit: heureEclairage() < 6.5 || heureEclairage() > 20.5,
+        hauteurNorm: etatSoleil(clock.jours, heureEclairage()).hauteurNorm ?? 0.5,
         eclat: m.eclat,
         saison: clock.etat.saison,
         camera: modeCamera === 'fps' ? fpsCamera : camera,
