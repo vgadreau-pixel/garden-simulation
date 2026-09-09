@@ -105,6 +105,23 @@
         white-space: nowrap;
       }
       #hint-mode.visible { opacity: 1; transform: translateX(-50%) translateY(0); }
+      /* ── Viseur central (mode FPS) ── */
+      #viseur {
+        position: fixed;
+        left: 50%;
+        top: 50%;
+        width: 14px;
+        height: 14px;
+        transform: translate(-50%, -50%);
+        border: 2px solid rgba(255, 243, 196, 0.9);
+        border-radius: 50%;
+        box-shadow: 0 0 6px rgba(0, 0, 0, 0.5);
+        z-index: 15;
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity 0.25s ease;
+      }
+      #viseur.visible { opacity: 0.95; }
       #datelabel {
         min-width: 210px;
         text-align: right;

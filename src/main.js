@@ -76,6 +76,14 @@ const fpsCamera = new THREE.PerspectiveCamera(70, window.innerWidth / window.inn
 const fps = new FpsControls(fpsCamera, canvas, () => jardin.instances);
 let modeCamera = 'orbital'; // 'orbital' | 'fps'
 
+// Adapter de vue FPS pour la plantation : la visée passe par la caméra FPS
+// (centre de l'écran) au lieu de la caméra ortho de dessus — sinon le point
+// de plantation est décalé par rapport à l'endroit regardé.
+const vueFps = {
+  actif: () => modeCamera === 'fps',
+  getCamera: () => fpsCamera,
+};
+
 function appliquerAspect() {
   const aspect = window.innerWidth / window.innerHeight;
   applyBaseFrustum(camera);
@@ -87,6 +95,11 @@ function appliquerAspect() {
 const hintMode = document.createElement('div');
 hintMode.id = 'hint-mode';
 document.body.appendChild(hintMode);
+
+// Viseur central (mode FPS uniquement) : montre où la plantation atterrit.
+const viseur = document.createElement('div');
+viseur.id = 'viseur';
+document.body.appendChild(viseur);
 let hintModeTimer = null;
 function montrerMode() {
   hintMode.textContent = modeCamera === 'fps'
@@ -102,10 +115,12 @@ function basculerMode() {
   if (modeCamera === 'fps') {
     fps.activer(); // demande le pointer lock
     controls.enabled = false;
+    viseur.classList.add('visible');
   } else {
     fps.desactiver();
     controls.enabled = true;
     controls.needsUpdate = true;
+    viseur.classList.remove('visible');
   }
   montrerMode();
 }
@@ -175,7 +190,7 @@ const meteo = creerMeteo(scene);
 // --- Plantation interactive (catalogue + clic sur parcelles) ---
 // Les plantes du plan sauvegardé sont restaurées ici ; l'horloge les fait
 // ensuite grandir (maturité modulée par le climat).
-const jardin = creerPlantation(scene, canvas, camera, clock, {});
+const jardin = creerPlantation(scene, canvas, camera, clock, { vueFps });
 Object.defineProperty(clock, 'instances', {
   get: () => jardin.instances,
   set: () => {}, // compat ascendante : l'affectation directe est ignorée
@@ -322,6 +337,8 @@ renderer.setAnimationLoop(() => {
 
   // Marche à la première personne (mode fps uniquement, collisions incluses).
   fps.update(deltaMs / 1000);
+  // Visée de plantation en vue immersive : le disque suit le regard (centre).
+  jardin.majFPS?.();
 
   if (controls.needsUpdate) controls.update();
   // Post-processing léger (bloom) : rendu via le composer, caméra du mode courant.
@@ -369,6 +386,7 @@ renderer.setAnimationLoop(() => {
         timeUI.maj();
         climatUI.maj();
         fps.update(deltaMs / 1000);
+        jardin.majFPS?.();
         if (controls.needsUpdate) controls.update();
         post.renderPass.camera = modeCamera === 'fps' ? fpsCamera : camera;
         post.composer.render();
@@ -402,6 +420,7 @@ renderer.setAnimationLoop(() => {
       timeUI.maj();
       climatUI.maj();
       fps.update(deltaMs / 1000);
+      jardin.majFPS?.();
       if (controls.needsUpdate) controls.update();
       post.renderPass.camera = modeCamera === 'fps' ? fpsCamera : camera;
       post.composer.render();

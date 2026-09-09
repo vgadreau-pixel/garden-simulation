@@ -28,7 +28,7 @@ function rayonEncombrement(plante) {
   return 0.5; // fleurs / légumes
 }
 
-export function creerPlantation(scene, canvas, camera, clock, { onChangement } = {}) {
+export function creerPlantation(scene, canvas, camera, clock, { onChangement, vueFps } = {}) {
   const group = new THREE.Group();
   group.name = 'plantations';
   scene.add(group);
@@ -48,14 +48,41 @@ export function creerPlantation(scene, canvas, camera, clock, { onChangement } =
   const raycaster = new THREE.Raycaster();
   const planSol = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
 
-  /** Point monde sous le curseur (intersection avec le plan du sol). */
+  /**
+   * Point monde visé.
+   *  - Vue de dessus : rayon sous le curseur (clientX, clientY) via la caméra ortho.
+   *  - Vue immersive (FPS) : pointer lock fige le curseur — on vise par le
+   *    CENTRE DE L'ÉCRAN via la caméra FPS (fournie par vueFps.getCamera()).
+   *    C'est la caméra du mode courant qui définit le rayon, jamais l'autre :
+   *    utiliser l'ortho en FPS décalait la visée (bug « pointeur décalé »).
+   */
   function pointSousCurseur(clientX, clientY) {
     const rect = canvas.getBoundingClientRect();
-    const nx = ((clientX - rect.left) / rect.width) * 2 - 1;
-    const ny = -(((clientY - rect.top) / rect.height) * 2 - 1);
-    raycaster.setFromCamera(new THREE.Vector2(nx, ny), camera);
+    let nx, ny, cam;
+    if (vueFps && vueFps.actif()) {
+      cam = vueFps.getCamera();
+      nx = 0; ny = 0; // centre de l'écran = direction du regard
+    } else {
+      cam = camera;
+      nx = ((clientX - rect.left) / rect.width) * 2 - 1;
+      ny = -(((clientY - rect.top) / rect.height) * 2 - 1);
+    }
+    raycaster.setFromCamera(new THREE.Vector2(nx, ny), cam);
     const pt = new THREE.Vector3();
-    return raycaster.ray.intersectPlane(planSol, pt) ? pt : null;
+    if (raycaster.ray.intersectPlane(planSol, pt)) return pt;
+    // Regard horizontal ou vers le ciel (rasant) : le rayon ne coupe pas le
+    // plan du sol — on vise un point « à ses pieds » à ~6 m devant la caméra
+    // pour que planter reste possible sans viser le sol explicitement.
+    const origine = raycaster.ray.origin;
+    const dir = raycaster.ray.direction;
+    if (dir.y >= -0.02) {
+      const horiz = Math.hypot(dir.x, dir.z);
+      if (horiz > 1e-4) {
+        pt.set(origine.x + (dir.x / horiz) * 6, 0, origine.z + (dir.z / horiz) * 6);
+        return pt;
+      }
+    }
+    return null;
   }
 
   // ── Surbrillance de la zone de plantation visée ──
@@ -101,7 +128,11 @@ export function creerPlantation(scene, canvas, camera, clock, { onChangement } =
   }
 
   function majSurbrillance(e) {
-    const pt = pointSousCurseur(e.clientX, e.clientY);
+    // En FPS : pas d'événement souris exploitable (pointer lock) — appelé
+    // chaque frame par majFPS() avec les coordonnées du centre.
+    const pt = e
+      ? pointSousCurseur(e.clientX, e.clientY)
+      : pointSousCurseur(0, 0);
     if (!pt) { surbrillance.visible = false; return; }
     const plante = planteParId(especeSelectionnee);
     const cible = planteSous(pt);
@@ -183,6 +214,13 @@ export function creerPlantation(scene, canvas, camera, clock, { onChangement } =
   canvas.addEventListener('pointerleave', () => { surbrillance.visible = false; });
   canvas.addEventListener('contextmenu', onContextMenu);
 
+  // ── Vue immersive : visée au centre de l'écran ──
+  // majFPS() est appelé chaque frame par main.js : le disque suit le regard.
+  function majFPS() {
+    if (!vueFps || !vueFps.actif()) return;
+    majSurbrillance(null);
+  }
+
   // ── Sauvegarde / restauration (localStorage) ──
   function sauvegarder() {
     try {
@@ -231,6 +269,8 @@ export function creerPlantation(scene, canvas, camera, clock, { onChangement } =
   return {
     group,
     planter,
+    /** Mise à jour de la visée en vue immersive (appelé chaque frame). */
+    majFPS,
     /** Plante une espèce par identifiant de catalogue (usage : démo/main.js). */
     planterParId(id, x, z, opts) {
       const plante = planteParId(id);
