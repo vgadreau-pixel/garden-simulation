@@ -191,7 +191,7 @@ if (jardin.compter().total === 0) {
     ['tomate', 1, 5], ['carotte', 6, 3], ['bouleau', 0, 0],
   ];
   for (const [id, ix, iz] of DEMO) {
-    jardin.planterParId?.(id, ix, iz);
+    jardin.planterParId?.(id, ix, iz, { maturite: 0.9 });
   }
 }
 
@@ -337,6 +337,75 @@ renderer.setAnimationLoop(() => {
     const out = { calls: renderer.info.render.calls, triangles: renderer.info.render.triangles };
     renderer.info.autoReset = true;
     return out;
+  };
+  // Exposé pour le diagnostic headless (test rendu direct vs composer).
+  window.__jardinDebug = {
+    renderer, post, scene, camera: () => (modeCamera === 'fps' ? fpsCamera : camera),
+    // Redémarre la boucle si le rAF headless l'a abandonnée, avec rendu de secours.
+    restart() {
+      const boucle = () => {
+        const t = performance.now();
+        const deltaMs = Math.min(t - dernierT, 2000);
+        dernierT = t;
+        clock.tick(deltaMs);
+        majVent(t / 1000);
+        const m = meteoDuJour(clock.climat, clock.jours);
+        meteo.appliquer(m, deltaMs / 1000);
+        for (const inst of jardin.instances) appliquerEtat(inst, clock.jours, clock.climat);
+        appliquerLumiere(m);
+        majAudio(m);
+        onirique.update({
+          delta: Math.min(deltaMs / 1000, 0.1),
+          soleilDir: etatSoleil(clock.jours, clock.heure).direction,
+          couleurLumiere: sun.color,
+          nuit: clock.heure < 6.5 || clock.heure > 20.5,
+          hauteurNorm: etatSoleil(clock.jours, clock.heure).hauteurNorm ?? 0.5,
+          eclat: m.eclat,
+          saison: clock.etat.saison,
+          camera: modeCamera === 'fps' ? fpsCamera : camera,
+          fog,
+        });
+        timeUI.maj();
+        climatUI.maj();
+        fps.update(deltaMs / 1000);
+        if (controls.needsUpdate) controls.update();
+        post.renderPass.camera = modeCamera === 'fps' ? fpsCamera : camera;
+        post.composer.render();
+      };
+      renderer.setAnimationLoop(boucle);
+    },
+    // Une itération complète à la demande (rendu headless : le rAF peut être
+    // suspendu par Chrome, on force tick + update + render hors boucle).
+    step() {
+      const t = performance.now();
+      const deltaMs = Math.min(t - dernierT, 2000);
+      dernierT = t;
+      clock.tick(deltaMs);
+      majVent(t / 1000);
+      const m = meteoDuJour(clock.climat, clock.jours);
+      meteo.appliquer(m, deltaMs / 1000);
+      for (const inst of jardin.instances) appliquerEtat(inst, clock.jours, clock.climat);
+      appliquerLumiere(m);
+      majAudio(m);
+      onirique.update({
+        delta: Math.min(deltaMs / 1000, 0.1),
+        soleilDir: etatSoleil(clock.jours, clock.heure).direction,
+        couleurLumiere: sun.color,
+        nuit: clock.heure < 6.5 || clock.heure > 20.5,
+        hauteurNorm: etatSoleil(clock.jours, clock.heure).hauteurNorm ?? 0.5,
+        eclat: m.eclat,
+        saison: clock.etat.saison,
+        camera: modeCamera === 'fps' ? fpsCamera : camera,
+        fog,
+      });
+      timeUI.maj();
+      climatUI.maj();
+      fps.update(deltaMs / 1000);
+      if (controls.needsUpdate) controls.update();
+      post.renderPass.camera = modeCamera === 'fps' ? fpsCamera : camera;
+      post.composer.render();
+      return { jours: clock.jours, saison: clock.etat.saison };
+    },
   };
 
   if (premiereFrame) {

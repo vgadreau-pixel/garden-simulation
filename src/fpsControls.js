@@ -5,6 +5,7 @@
 // et la bascule se fait par la touche V (gérée dans main.js).
 import * as THREE from 'three';
 import { GRID_EXTENT, GROUND_MARGIN } from './constants.js';
+import { OBSTACLES_STATIQUES } from './onirique.js';
 
 const HAUTEUR_YEUX = 1.70; // m
 const VITESSE_MARCHE = 3.2; // m/s

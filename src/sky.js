@@ -32,6 +32,17 @@ export function creerComposer(renderer, scene, camera) {
   );
   composer.addPass(bloom);
   composer.addPass(new OutputPass()); // tone mapping + sRGB en fin de chaîne
+  // SwiftShader / GPU logiciel : UnrealBloomPass ET OutputPass rendent le
+  // canvas entièrement noir (bug driver, err GL 0, rAF vif). On contourne en
+  // désactivant TOUTES les passes post-render : le renderPass finalise direct
+  // sur le canvas avec ACESFilmic + sRGB déjà configurés sur le renderer.
+  const gl = renderer.getContext();
+  const dbg = gl.getExtension('WEBGL_debug_renderer_info');
+  const rendu = dbg ? gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL) : '';
+  if (/swiftshader|llvmpipe|softpipe|software/i.test(String(rendu))) {
+    for (const p of composer.passes) if (p !== renderPass) p.enabled = false;
+    console.warn('[sky] GPU logiciel détecté (' + rendu + ') : post-processing désactivé (canvas noir sinon).');
+  }
   return { composer, bloom, renderPass };
 }
 

@@ -210,9 +210,9 @@ export function creerPlantation(scene, canvas, camera, clock, { onChangement } =
     group,
     planter,
     /** Plante une espèce par identifiant de catalogue (usage : démo/main.js). */
-    planterParId(id, ix, iz) {
+    planterParId(id, ix, iz, opts) {
       const plante = planteParId(id);
-      return plante ? planter(ix, iz, plante) : null;
+      return plante ? planter(ix, iz, plante, opts) : null;
     },
     retirer,
     /** Espèce sélectionnée dans le catalogue (id). */
